@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Accept invite — Where Are We Moving</title>
+    <link rel="stylesheet" href="/app.css">
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/app" class="logo">Where Are We Moving</a>
+        <ul>
+          <li id="nav-auth">
+            <a href="/get-started" class="btn-nav">Sign in</a>
+          </li>
+        </ul>
+      </nav>
+    </header>
+
+    <div class="page-centered">
+      <div class="card">
+        <div class="card-header">
+          <h1>You've been invited</h1>
+          <p>
+            Accept to pair your account and start comparing countries together.
+          </p>
+        </div>
+        <p id="invite-notice" class="notice hidden" aria-live="polite"></p>
+        <div class="stack">
+          <button id="accept-btn" class="btn btn-primary" type="button">
+            Accept &amp; pair accounts
+          </button>
+          <a href="/app" class="btn btn-secondary">Maybe later</a>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      const token = location.pathname.split("/invite/")[1];
+      const btn = document.getElementById("accept-btn");
+      const notice = document.getElementById("invite-notice");
+
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        btn.textContent = "Pairing…";
+        try {
+          const res = await fetch(`/api/invite/${token}/accept`, {
+            method: "POST",
+          });
+          if (res.ok) {
+            notice.textContent = "Paired! Redirecting…";
+            notice.className = "notice success";
+            // Clear the pending_invite cookie
+            document.cookie = "pending_invite=; Max-Age=0; Path=/";
+            setTimeout(() => {
+              location.href = "/app";
+            }, 800);
+          } else {
+            const body = await res.json();
+            notice.textContent = body.error ?? "Something went wrong.";
+            notice.className = "notice error";
+            btn.disabled = false;
+            btn.textContent = "Accept & pair accounts";
+          }
+        } catch {
+          notice.textContent = "Network error. Please try again.";
+          notice.className = "notice error";
+          btn.disabled = false;
+          btn.textContent = "Accept & pair accounts";
+        }
+      });
+    </script>
+  </body>
+</html>

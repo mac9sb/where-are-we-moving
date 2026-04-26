@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Signed in — Where Are We Moving</title>
+    <link rel="stylesheet" href="/app.css">
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="/" class="logo">Where Are We Moving</a>
+        <ul>
+          <li>
+            <a href="/about" data-i18n="nav.about">About</a>
+          </li>
+          <li>
+            <select id="locale-switcher" aria-label="Language">
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+            </select>
+          </li>
+          <li id="nav-auth">
+            <a href="/get-started" data-i18n="nav.sign_in">Sign in</a>
+          </li>
+        </ul>
+      </nav>
+    </header>
+
+    <div class="page-centered">
+      <div class="card">
+        <div class="card-header">
+          <h1 data-i18n="auth_success.title">You're signed in</h1>
+          <p data-i18n="auth_success.subtitle">
+            Welcome. You can now access your account.
+          </p>
+        </div>
+
+        <div class="stack">
+          <button
+            id="passkey-register"
+            class="btn btn-secondary hidden"
+            type="button"
+            data-i18n="auth_success.add_passkey"
+          >
+            Add a passkey for faster sign-in
+          </button>
+
+          <form method="post" action="/auth/logout">
+            <button
+              type="submit"
+              class="btn btn-secondary"
+              data-i18n="auth_success.sign_out"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/client.js"></script>
+  </body>
+</html>

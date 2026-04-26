@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Where Are We Moving</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    >
+    <link rel="stylesheet" href="/app.css">
+  </head>
+  <body>
+    <div class="header">
+      <div class="header-left">
+        <h1>Where Are We <em>Moving</em></h1>
+        <p>EU + UK · digital nomad visa + quality of life · 2026</p>
+      </div>
+      <div class="header-right">
+        <div class="legend">
+          <div class="legend-item">
+            <span class="legend-dot" style="background: var(--her)"></span><span
+              id="legend-her"
+            >You</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot" style="background: var(--him)"></span><span
+              id="legend-partner"
+            >Partner</span>
+          </div>
+          <div class="legend-item">
+            <span
+              class="legend-dot"
+              style="background: var(--accent)"
+            ></span>Weighted
+          </div>
+        </div>
+        <button
+          class="icon-btn"
+          id="profile-btn"
+          title="Profile &amp; settings"
+        >
+          &#128100;
+        </button>
+        <span id="syncStatus"></span>
+      </div>
+    </div>
+
+    <div class="main">
+      <div style="overflow-x: auto">
+        <div class="table-hint" style="color: var(--text3); font-size: 12px; padding: 12px 0; text-align: center">
+          Click any column header to sort · Click row for details · ☆ to pin
+        </div>
+        <table class="lb-table">
+          <thead>
+            <tr>
+              <th onclick='setSort("rank")'>#</th>
+              <th>Country</th>
+              <th onclick='setSort("you")' id="th-you">You</th>
+              <th onclick='setSort("partner")' id="th-partner">Partner</th>
+              <th
+                onclick='setSort("combined")'
+                id="th-combined"
+                title="50% personal ratings + 50% metric scores weighted by priorities"
+              >
+                Weighted
+              </th>
+              <th onclick='setSort("disagreement")' id="th-disagreement">
+                Gap
+              </th>
+              <th onclick='setSort("cost")' id="th-cost">Cost</th>
+              <th onclick='setSort("education")' id="th-education">Edu</th>
+              <th onclick='setSort("weather")' id="th-weather">Weather</th>
+              <th onclick='setSort("safety")' id="th-safety">Safety</th>
+              <th onclick='setSort("healthcare")' id="th-healthcare">Health</th>
+              <th onclick='setSort("visa")' id="th-visa">Visa</th>
+              <th onclick='setSort("pinned")' id="th-pinned">Pin</th>
+              <th>Hide</th>
+            </tr>
+          </thead>
+          <tbody id="lbBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DETAIL OVERLAY -->
+    <div
+      class="overlay"
+      id="detailOverlay"
+      onclick='bgClose(event, "detailOverlay")'
+    >
+      <div class="panel detail-panel">
+        <div class="panel-hdr">
+          <div class="panel-hdr-left">
+            <div class="d-flag" id="d-flag"></div>
+            <div>
+              <div class="d-title" id="d-name"></div>
+              <div class="d-visa-txt" id="d-visa"></div>
+            </div>
+          </div>
+          <button class="close-btn" onclick='closeOverlay("detailOverlay")'>
+            &#215;
+          </button>
+        </div>
+        <div class="panel-body">
+          <div class="score-cards">
+            <div class="score-card">
+              <div class="sc-label" id="sc-you-lbl" style="color: var(--her)">
+                You
+              </div>
+              <input
+                class="score-inp"
+                id="edit-you"
+                type="number"
+                min="0"
+                max="5"
+                step="0.5"
+                style="color: var(--her)"
+                oninput="liveUpdate()"
+              >
+              <div class="sc-hint">0 – 5</div>
+            </div>
+            <div class="score-card">
+              <div
+                class="sc-label"
+                id="sc-partner-lbl"
+                style="color: var(--him)"
+              >
+                Partner
+              </div>
+              <input
+                class="score-inp"
+                id="edit-partner"
+                type="number"
+                min="0"
+                max="5"
+                step="0.5"
+                style="color: var(--him)"
+                oninput="liveUpdate()"
+              >
+              <div class="sc-hint">0 – 5</div>
+            </div>
+            <div class="score-card accent-card">
+              <div class="sc-label" style="color: var(--accent)">
+                Weighted score
+              </div>
+              <div class="sc-combined" id="d-combined"></div>
+              <div class="sc-hint">auto-calculated</div>
+            </div>
+          </div>
+
+          <div class="d-tabs">
+            <button class="d-tab active" onclick='switchTab("overview", this)'>
+              Overview
+            </button>
+            <button class="d-tab" onclick='switchTab("spider", this)'>
+              Radar
+            </button>
+            <button class="d-tab" onclick='switchTab("keypoints", this)'>
+              Key points
+            </button>
+            <button class="d-tab" onclick='switchTab("visa", this)'>
+              Visa &amp; Residency
+            </button>
+            <button class="d-tab" onclick='switchTab("locations", this)'>
+              Locations
+            </button>
+            <button class="d-tab" onclick='switchTab("col", this)'>
+              Cost of Living
+            </button>
+            <button class="d-tab" onclick='switchTab("notes", this)'>
+              Our notes
+            </button>
+          </div>
+
+          <div class="d-tab-content active" id="tab-overview">
+            <div class="metrics-grid" id="d-metrics"></div>
+          </div>
+          <div class="d-tab-content" id="tab-spider">
+            <div id="spiderWrap"></div>
+          </div>
+          <div class="d-tab-content" id="tab-keypoints">
+            <div class="kp-grid" id="d-keypoints"></div>
+          </div>
+          <div class="d-tab-content" id="tab-visa">
+            <div id="d-visablock"></div>
+          </div>
+          <div class="d-tab-content" id="tab-locations">
+            <div id="d-locations"></div>
+          </div>
+          <div class="d-tab-content" id="tab-col">
+            <div id="d-col"></div>
+          </div>
+          <div class="d-tab-content" id="tab-notes">
+            <div class="sec-title">Our notes</div>
+            <textarea
+              class="notes-area"
+              id="our-notes"
+              placeholder="Add your thoughts, things discussed, reasons for or against…"
+              oninput="saveNote()"
+            ></textarea>
+            <div class="notes-footer">
+              <span class="notes-autosave">Auto-saved</span>
+              <span class="notes-saved" id="notesSaved">Saved ✓</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE OVERLAY -->
+    <div
+      class="overlay"
+      id="profileOverlay"
+      onclick='bgClose(event, "profileOverlay")'
+    >
+      <div class="panel profile-panel">
+        <div class="panel-hdr">
+          <div class="panel-hdr-left">
+            <div
+              style="font-family: 'DM Serif Display', serif; font-size: 22px"
+            >
+              Profile &amp; Settings
+            </div>
+          </div>
+          <button
+            class="close-btn"
+            onclick='saveProfile();
+closeOverlay("profileOverlay")'
+          >
+            &#215;
+          </button>
+        </div>
+        <div class="panel-body">
+          <div class="d-tabs" style="margin-bottom: 20px">
+            <button
+              class="d-tab active"
+              onclick='switchProfileTab("main", this)'
+            >
+              Weights &amp; Names
+            </button>
+            <button class="d-tab" onclick='switchProfileTab("security", this)'>
+              Security
+            </button>
+            <button class="d-tab" onclick='switchProfileTab("pair", this)'>
+              Partner
+            </button>
+            <button class="d-tab" onclick='switchProfileTab("hidden", this)'>
+              Hidden
+            </button>
+          </div>
+
+          <!-- WEIGHTS TAB -->
+          <div id="ptab-main">
+            <div style="display:flex;align-items:center;gap:24px;margin-bottom:20px">
+            <div style="flex:1">
+              <div class="profile-section-title">Your display name</div>
+              <input
+                class="pn-input"
+                id="p-your-name"
+                type="text"
+                placeholder="Your name…"
+                style="width:100%"
+              >
+            </div>
+            <div>
+              <div class="profile-section-title">Your accent color</div>
+              <input
+                type="color"
+                id="p-accent-color"
+                value="#c8a96e"
+                style="width:48px;height:32px;border:none;cursor:pointer;background:none"
+              >
+            </div>
+          </div>
+            <div class="profile-section-title">
+              Metric weights — what matters most to you
+            </div>
+            <div class="weights-explainer" style="color: var(--text2); font-size: 13px; line-height: 1.6; padding: 14px 16px; background: var(--bg3); border-radius: 10px; margin-bottom: 16px">
+              <strong style="color: var(--accent)">How the Weighted score works:</strong> Each person gets 50% their personal rating + 50% metrics weighted by <em style="font-style:italic;color:var(--text)">their</em> sliders. The two scores are then averaged. Set 5 for essential, 1 for irrelevant.
+            </div>
+            <div class="weights-grid" id="weightsGrid"></div>
+            <div
+              style="font-size: 11px; color: var(--text3); font-family: 'DM Mono', monospace; text-align: center; padding: 8px 0"
+            >
+              Changes save automatically
+            </div>
+            <div class="profile-section-title" style="margin-top: 16px">
+              Account
+            </div>
+            <form method="post" action="/auth/logout">
+              <button type="submit" class="sign-out-btn">Sign out</button>
+            </form>
+          </div>
+
+          <!-- SECURITY TAB -->
+          <div id="ptab-security" style="display: none">
+            <div class="profile-section-title">Passkey</div>
+            <div style="font-size: 13px; color: var(--text2); margin-bottom: 16px; line-height: 1.5">
+              Use a passkey for faster, more secure sign-in without needing email verification.
+            </div>
+            <button type="button" class="passkey-setup-btn" id="passkeySetupBtn" onclick="setupPasskey()">
+              Set up Passkey
+            </button>
+            <div id="passkeyStatus" style="font-size: 12px; color: var(--text3); margin-top: 12px; display: none"></div>
+          </div>
+
+          <!-- PAIR TAB -->
+          <div id="ptab-pair" style="display: none">
+            <div id="pair-content"></div>
+          </div>
+
+          <!-- HIDDEN TAB -->
+          <div id="ptab-hidden" style="display: none">
+            <div
+              style="font-size: 12px; color: var(--text2); margin-bottom: 14px; line-height: 1.5"
+            >
+              Countries hidden from the table. Click Unhide to restore.
+            </div>
+            <div id="hiddenList"></div>
+            <div
+              id="hiddenEmpty"
+              style="font-size: 13px; color: var(--text3); font-family: 'DM Mono', monospace; padding: 24px 0; text-align: center; display: none"
+            >
+              No hidden countries
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
