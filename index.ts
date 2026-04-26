@@ -64,6 +64,17 @@ function pairId(a: string, b: string): string {
   return [a, b].sort().join(":");
 }
 
+async function createPair(
+  userId: string,
+  inviterId: string,
+  token: string,
+): Promise<void> {
+  await kv.set(["pair", userId], inviterId);
+  await kv.set(["pair", inviterId], userId);
+  await kv.delete(["invite", token]);
+  await kv.delete(["invite-by-user", inviterId]);
+}
+
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -86,9 +97,6 @@ mountAuthRoutes(router, kv, {
   rpName: RP_NAME,
   successPath: "/app",
 });
-
-// Stripe: import { mountStripeRoutes } from "@mac9sb/deno-foundation"
-// and call mountStripeRoutes(router, kv, { baseUrl: BASE_URL }) to add billing routes.
 
 router.route("/", {
   get: () => Response.redirect(`${BASE_URL}/get-started`, 302),
@@ -151,21 +159,26 @@ router.route("/api/me", {
     const session = await validateSession(kv, req);
     if (!session) return json({ error: "unauthenticated" }, 401);
 
-    const profileEntry = await kv.get<{ name: string; accentColor?: string }>([
-      "profile",
-      session.userId,
+    const [profileEntry, pairEntry] = await Promise.all([
+      kv.get<
+        { name: string; accentColor?: string; weights?: Record<string, number> }
+      >(
+        ["profile", session.userId],
+      ),
+      kv.get<string>(["pair", session.userId]),
     ]);
-    const pairEntry = await kv.get<string>(["pair", session.userId]);
     const partnerId = pairEntry.value ?? null;
 
-    let partnerProfile: { name: string; accentColor?: string } | null = null;
+    type ProfileShape = {
+      name: string;
+      accentColor?: string;
+      weights?: Record<string, number>;
+    };
+    let partnerProfile: ProfileShape | null = null;
     if (partnerId) {
       const pProfile = await kv.get(["profile", partnerId]);
       if (pProfile.value) {
-        partnerProfile = pProfile.value as {
-          name: string;
-          accentColor?: string;
-        };
+        partnerProfile = pProfile.value as ProfileShape;
       }
     }
 
@@ -173,9 +186,11 @@ router.route("/api/me", {
       userId: session.userId,
       name: profileEntry.value?.name ?? null,
       accentColor: profileEntry.value?.accentColor ?? "#c8a96e",
+      yourWeights: profileEntry.value?.weights ?? null,
       partnerId,
       partnerName: partnerProfile?.name ?? null,
       partnerAccentColor: partnerProfile?.accentColor ?? "#c8a96e",
+      partnerWeights: partnerProfile?.weights ?? null,
     });
   },
 });
@@ -203,13 +218,21 @@ router.route("/api/profile", {
     const err = requireSession(session);
     if (err) return err;
 
-    const body = (await req.json()) as { name?: string; accentColor?: string };
+    const body = (await req.json()) as {
+      name?: string;
+      accentColor?: string;
+      weights?: Record<string, number>;
+    };
     const name = (body.name ?? "").trim().slice(0, 64);
     const accentColor = body.accentColor ?? "#c8a96e";
 
-    // Merge with existing profile
     const existing = await kv.get(["profile", session!.userId]);
-    const profile = { ...(existing.value as object || {}), name, accentColor };
+    const profile = {
+      ...(existing.value as object || {}),
+      name,
+      accentColor,
+      ...(body.weights ? { weights: body.weights } : {}),
+    };
     await kv.set(["profile", session!.userId], profile);
     return json({ ok: true });
   },
@@ -276,15 +299,22 @@ router.route("/api/invite/check", {
       kv.get<string>(["pair", inviterId]),
     ]);
     if (myPair.value) return json({ paired: false, error: "Already paired" });
-    if (theirPair.value) return json({ paired: false, error: "Inviter already paired" });
+    if (theirPair.value) {
+      return json({ paired: false, error: "Inviter already paired" });
+    }
 
-    // Create the pair
-    await kv.set(["pair", session!.userId], inviterId);
-    await kv.set(["pair", inviterId], session!.userId);
-    await kv.delete(["invite", token]);
-    await kv.delete(["invite-by-user", inviterId]);
-
-    return json({ paired: true, partnerId: inviterId });
+    await createPair(session!.userId, inviterId, token);
+    return new Response(
+      JSON.stringify({ paired: true, partnerId: inviterId }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "Set-Cookie":
+            "pending_invite=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0",
+        },
+      },
+    );
   },
 });
 
@@ -319,11 +349,7 @@ router.route("/api/invite/:token/accept", {
       return json({ error: "Inviter is already paired" }, 400);
     }
 
-    await kv.set(["pair", session!.userId], inviterId);
-    await kv.set(["pair", inviterId], session!.userId);
-    await kv.delete(["invite", token]);
-    await kv.delete(["invite-by-user", inviterId]);
-
+    await createPair(session!.userId, inviterId, token);
     return json({ ok: true, partnerId: inviterId });
   },
 });

@@ -1,4 +1,6 @@
 /* eslint-disable no-unused-vars */
+import { decodeOptions, encodeCredential } from "/webauthn.js";
+
 let ALL_METRICS = [];
 let COUNTRIES = [];
 let currentSort = "combined";
@@ -24,15 +26,12 @@ async function init() {
   COUNTRIES = data.countries;
   await loadData();
 
-  // Check for pending invite and auto-pair if exists
-  try {
-    const checkRes = await fetch("/api/invite/check", { method: "POST" });
-    const checkData = await checkRes.json();
-    if (checkData.paired) {
-      console.log("Auto-paired with partner");
+  if (document.cookie.includes("pending_invite=")) {
+    try {
+      await fetch("/api/invite/check", { method: "POST" });
+    } catch {
+      // silent fail
     }
-  } catch {
-    // Silent fail - no pending invite
   }
 
   // Load partner info BEFORE first render
@@ -44,33 +43,33 @@ async function init() {
 }
 
 async function loadPartner() {
-  const res = await fetch("/api/me");
+  const [res, pkRes] = await Promise.all([
+    fetch("/api/me"),
+    fetch("/api/passkey/exists"),
+  ]);
+
   if (res.ok) {
     partnerData = await res.json();
-    console.log("partnerData from /api/me:", partnerData);
 
-    // Load current user's profile from API
-    if (partnerData.name) {
-      profile.youName = partnerData.name;
-    }
-    if (partnerData.accentColor) {
-      profile.accentColor = partnerData.accentColor;
+    if (partnerData.name) profile.youName = partnerData.name;
+    if (partnerData.accentColor) profile.accentColor = partnerData.accentColor;
+    if (partnerData.yourWeights) {
+      profile.weights = { ...profile.weights, ...partnerData.yourWeights };
     }
 
-    // Load partner's profile
     if (partnerData?.partnerId) {
       profile.partnerName = partnerData.partnerName || "Partner";
       profile.partnerAccentColor = partnerData.partnerAccentColor || "#c8a96e";
+      profile.partnerWeights = partnerData.partnerWeights ?? null;
     } else {
       profile.partnerName = "Partner";
+      profile.partnerWeights = null;
     }
   } else {
     console.error("Failed to load partner data:", res.status);
   }
 
-  // Also check passkey status
-  const pkRes = await fetch("/api/passkey/exists");
-  if (pkRes.ok) {
+  if (pkRes.ok && partnerData) {
     const pkData = await pkRes.json();
     partnerData.hasPasskey = pkData.hasPasskey;
   }
@@ -137,8 +136,7 @@ async function loadData() {
     pins = data.pins || {};
     userNotes = data.notes || {};
     hidden = data.hidden || {};
-    profile = data.prefs ||
-      { youName: "You", partnerName: "Partner", weights: {} };
+    profile = { ...profile, ...(data.prefs || {}) };
   }
 
   COUNTRIES.forEach((c) => {
@@ -161,7 +159,6 @@ function updateLegendNames() {
 
 function updatePairedState() {
   const isPaired = !!partnerData?.partnerId;
-  console.log("updatePairedState:", isPaired, "partnerData:", partnerData);
   document.body.classList.toggle("paired", isPaired);
   document.body.classList.toggle("solo", !isPaired);
 }
@@ -264,7 +261,7 @@ function renderLB() {
   });
 
   const tbody = document.getElementById("lbBody");
-  tbody.innerHTML = "";
+  const rows = [];
 
   data.forEach((c, i) => {
     const rank = i + 1;
@@ -313,8 +310,9 @@ function renderLB() {
       `<td onclick="event.stopPropagation();togglePin('${c.id}')" style="cursor:pointer;font-size:15px;text-align:center">${pinStar}</td>` +
       `<td onclick="event.stopPropagation();toggleHide('${c.id}')" style="text-align:center"><button class="hide-btn" title="Hide this country">✕</button></td>` +
       `</tr>`;
-    tbody.innerHTML += row;
+    rows.push(row);
   });
+  tbody.innerHTML = rows.join(""); // same source as existing innerHTML use above
 
   document.querySelectorAll(".lb-table th").forEach((t) => {
     t.classList.remove("sorted");
@@ -369,26 +367,7 @@ function openDetail(id) {
   document.getElementById("edit-partner").value = r.partner ?? "";
   refreshWS();
 
-  const ML = {
-    cost: "Cost of living",
-    housing: "Housing",
-    groceries: "Groceries & food",
-    healthcare: "Healthcare",
-    education: "Education",
-    safety: "Safety",
-    weather: "Weather",
-    language: "Language",
-    family: "Family",
-    visa: "Visa ease",
-    nightlife: "Nightlife & social",
-    nature: "Nature & outdoors",
-    culture: "Culture & arts",
-    shopping: "Shopping",
-    transport: "Transport",
-    internet: "Internet",
-    politics: "Political stability",
-    expat: "Expat community",
-  };
+  const ML = Object.fromEntries(ALL_METRICS.map((m) => [m.k, m.label]));
 
   document.getElementById("d-metrics").innerHTML = ALL_METRICS.map((m) => {
     const k = m.k;
@@ -761,22 +740,22 @@ function openProfile() {
   document.getElementById("profileOverlay").classList.add("open");
 }
 
+let _saveProfileTimer = null;
+
 function autoSaveProfile() {
   profile.youName = document.getElementById("p-your-name").value || "You";
-  profile.partnerName = "Partner";
   profile.accentColor = document.getElementById("p-accent-color")?.value ||
     "#c8a96e";
 
-  updateAccentColorUI();
-  persistProfileToServer();
-
   document.querySelectorAll("#weightsGrid input[type=range]").forEach((inp) => {
-    const key = inp.dataset.key;
-    profile.weights[key] = parseInt(inp.value);
+    profile.weights[inp.dataset.key] = parseInt(inp.value);
   });
 
-  persist("prefs", profile);
+  updateAccentColorUI();
   renderLB();
+
+  clearTimeout(_saveProfileTimer);
+  _saveProfileTimer = setTimeout(persistProfileToServer, 300);
 }
 
 async function persistProfileToServer() {
@@ -786,6 +765,7 @@ async function persistProfileToServer() {
     body: JSON.stringify({
       name: profile.youName,
       accentColor: profile.accentColor,
+      weights: profile.weights,
     }),
   });
 }
@@ -795,25 +775,6 @@ function updateAccentColorUI() {
   const partnerColor = profile?.partnerAccentColor || myColor;
   document.documentElement.style.setProperty("--her", myColor);
   document.documentElement.style.setProperty("--him", partnerColor);
-}
-
-function saveProfile() {
-  profile.youName = document.getElementById("p-your-name").value || "You";
-  profile.partnerName = document.getElementById("p-partner-name")?.value ||
-    "Partner";
-  profile.accentColor = document.getElementById("p-accent-color")?.value ||
-    "#c8a96e";
-
-  updateAccentColorUI();
-  persistProfileToServer();
-
-  document.querySelectorAll("#weightsGrid input[type=range]").forEach((inp) => {
-    const key = inp.dataset.key;
-    profile.weights[key] = parseInt(inp.value);
-  });
-
-  persist("prefs", profile);
-  renderLB();
 }
 
 function switchProfileTab(name, btn) {
@@ -873,51 +834,24 @@ async function setupPasskey() {
       method: "POST",
     });
     if (!beginRes.ok) {
-      const errText = await beginRes.text();
-      throw new Error(`Failed to start: ${errText}`);
+      throw new Error(`Failed to start: ${await beginRes.text()}`);
     }
 
     const result = await beginRes.json();
-
-    // Convert base64url challenge to ArrayBuffer
-    const challengeB64 = result.options.challenge;
-    const userIdB64 = result.options.user.id;
-    const options = { ...result.options };
-    options.challenge = Uint8Array.from(
-      atob(challengeB64.replace(/-/g, "+").replace(/_/g, "/")),
-      (c) => c.charCodeAt(0),
-    );
-    options.user = {
-      ...options.user,
-      id: Uint8Array.from(
-        atob(userIdB64.replace(/-/g, "+").replace(/_/g, "/")),
-        (c) => c.charCodeAt(0),
-      ),
-    };
-    options.excludeCredentials = (options.excludeCredentials || []).map(
-      (c) => ({
-        ...c,
-        id: Uint8Array.from(
-          atob(c.id.replace(/-/g, "+").replace(/_/g, "/")),
-          (c) => c.charCodeAt(0),
-        ),
-      }),
-    );
-
-    const cred = await navigator.credentials.create({ publicKey: options });
+    const cred = await navigator.credentials.create({
+      publicKey: decodeOptions(result.options),
+    });
 
     const finishRes = await fetch("/auth/passkey/register/finish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         challengeId: result.challengeId,
-        response: cred,
+        response: encodeCredential(cred),
       }),
     });
-
     if (!finishRes.ok) {
-      const errText = await finishRes.text();
-      throw new Error(`Failed to complete: ${errText}`);
+      throw new Error(`Failed to complete: ${await finishRes.text()}`);
     }
 
     status.textContent = "Passkey set up successfully!";
@@ -945,7 +879,6 @@ globalThis.closeOverlay = closeOverlay;
 globalThis.switchTab = switchTab;
 globalThis.autoSaveProfile = autoSaveProfile;
 globalThis.openProfile = openProfile;
-globalThis.saveProfile = saveProfile;
 globalThis.switchProfileTab = switchProfileTab;
 globalThis.setupPasskey = setupPasskey;
 globalThis.createInvite = createInvite;

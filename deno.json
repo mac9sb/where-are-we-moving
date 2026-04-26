@@ -1,9 +1,13 @@
 {
   "tasks": {
-    "dev": "deno run --watch --allow-read --allow-net --allow-env --unstable-kv --env-file index.ts",
-    "start": "deno run --allow-read --allow-net --allow-env --unstable-kv index.ts"
+    "check": "deno fmt --check && deno lint && deno check **/*.ts",
+    "start": "deno run -A --watch index.ts"
   },
+  "unstable": ["kv"],
   "imports": {
     "@mac9sb/deno-foundation": "jsr:@mac9sb/deno-foundation@^0.1.9"
+  },
+  "deploy": {
+    "kv": true
   }
 }

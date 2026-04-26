@@ -169,12 +169,12 @@ body {
   font-weight: 500;
   font-size: 13px;
 }
-.score-her {
+.score-you {
   color: var(--her);
   font-family: "DM Mono", monospace;
   font-size: 13px;
 }
-.score-him {
+.score-partner {
   color: var(--him);
   font-family: "DM Mono", monospace;
   font-size: 13px;
@@ -939,9 +939,6 @@ body:not(.paired) .legend-item.partner-col {
   display: none;
 }
 
-.lb-table th.sorted {
-  color: var(--accent);
-}
 .sort-dir {
   font-size: 9px;
   color: var(--accent);
