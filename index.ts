@@ -244,6 +244,50 @@ router.route("/api/invite", {
   },
 });
 
+// ── API: check & accept pending invite from cookie ───────────────────────────────
+
+router.route("/api/invite/check", {
+  post: async (req) => {
+    const session = await validateSession(kv, req);
+    const err = requireSession(session);
+    if (err) return json({ paired: false, error: "Not authenticated" }, 401);
+
+    // Check cookie for pending_invite
+    const cookieHeader = req.headers.get("Cookie") ?? "";
+    const match = cookieHeader.match(/(?:^|;\s*)pending_invite=([^;]+)/);
+    if (!match) return json({ paired: false });
+
+    const token = match[1].trim();
+
+    // Verify invite exists
+    const inviterEntry = await kv.get<string>(["invite", token]);
+    if (!inviterEntry.value) {
+      return json({ paired: false });
+    }
+
+    const inviterId = inviterEntry.value;
+    if (inviterId === session!.userId) {
+      return json({ paired: false, error: "Cannot pair with yourself" });
+    }
+
+    // Check neither already has a partner
+    const [myPair, theirPair] = await Promise.all([
+      kv.get<string>(["pair", session!.userId]),
+      kv.get<string>(["pair", inviterId]),
+    ]);
+    if (myPair.value) return json({ paired: false, error: "Already paired" });
+    if (theirPair.value) return json({ paired: false, error: "Inviter already paired" });
+
+    // Create the pair
+    await kv.set(["pair", session!.userId], inviterId);
+    await kv.set(["pair", inviterId], session!.userId);
+    await kv.delete(["invite", token]);
+    await kv.delete(["invite-by-user", inviterId]);
+
+    return json({ paired: true, partnerId: inviterId });
+  },
+});
+
 // ── API: accept invite ────────────────────────────────────────────────────────
 
 router.route("/api/invite/:token/accept", {

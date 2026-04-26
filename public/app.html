@@ -23,7 +23,7 @@
               id="legend-her"
             >You</span>
           </div>
-          <div class="legend-item">
+          <div class="legend-item partner-col">
             <span class="legend-dot" style="background: var(--him)"></span><span
               id="legend-partner"
             >Partner</span>
@@ -48,7 +48,10 @@
 
     <div class="main">
       <div style="overflow-x: auto">
-        <div class="table-hint" style="color: var(--text3); font-size: 12px; padding: 12px 0; text-align: center">
+        <div
+          class="table-hint"
+          style="color: var(--text3); font-size: 12px; padding: 12px 0; text-align: center"
+        >
           Click any column header to sort · Click row for details · ☆ to pin
         </div>
         <table class="lb-table">
@@ -57,15 +60,25 @@
               <th onclick='setSort("rank")'>#</th>
               <th>Country</th>
               <th onclick='setSort("you")' id="th-you">You</th>
-              <th onclick='setSort("partner")' id="th-partner">Partner</th>
+              <th
+                class="partner-col"
+                onclick='setSort("partner")'
+                id="th-partner"
+              >
+                Partner
+              </th>
               <th
                 onclick='setSort("combined")'
                 id="th-combined"
-                title="50% personal ratings + 50% metric scores weighted by priorities"
+                title="50% personal ratings + 50% metrics weighted by priorities"
               >
                 Weighted
               </th>
-              <th onclick='setSort("disagreement")' id="th-disagreement">
+              <th
+                class="partner-col"
+                onclick='setSort("disagreement")'
+                id="th-disagreement"
+              >
                 Gap
               </th>
               <th onclick='setSort("cost")' id="th-cost">Cost</th>
@@ -252,32 +265,42 @@ closeOverlay("profileOverlay")'
 
           <!-- WEIGHTS TAB -->
           <div id="ptab-main">
-            <div style="display:flex;align-items:center;gap:24px;margin-bottom:20px">
-            <div style="flex:1">
-              <div class="profile-section-title">Your display name</div>
-              <input
-                class="pn-input"
-                id="p-your-name"
-                type="text"
-                placeholder="Your name…"
-                style="width:100%"
-              >
+            <div
+              style="display: flex; align-items: center; gap: 24px; margin-bottom: 20px"
+            >
+              <div style="flex: 1">
+                <div class="profile-section-title">Your display name</div>
+                <input
+                  class="pn-input"
+                  id="p-your-name"
+                  type="text"
+                  placeholder="Your name…"
+                  style="width: 100%"
+                >
+              </div>
+              <div>
+                <div class="profile-section-title">Your accent color</div>
+                <input
+                  type="color"
+                  id="p-accent-color"
+                  value="#c8a96e"
+                  style="width: 48px; height: 32px; border: none; cursor: pointer; background: none"
+                >
+              </div>
             </div>
-            <div>
-              <div class="profile-section-title">Your accent color</div>
-              <input
-                type="color"
-                id="p-accent-color"
-                value="#c8a96e"
-                style="width:48px;height:32px;border:none;cursor:pointer;background:none"
-              >
-            </div>
-          </div>
             <div class="profile-section-title">
               Metric weights — what matters most to you
             </div>
-            <div class="weights-explainer" style="color: var(--text2); font-size: 13px; line-height: 1.6; padding: 14px 16px; background: var(--bg3); border-radius: 10px; margin-bottom: 16px">
-              <strong style="color: var(--accent)">How the Weighted score works:</strong> Each person gets 50% their personal rating + 50% metrics weighted by <em style="font-style:italic;color:var(--text)">their</em> sliders. The two scores are then averaged. Set 5 for essential, 1 for irrelevant.
+            <div
+              class="weights-explainer"
+              style="color: var(--text2); font-size: 13px; line-height: 1.6; padding: 14px 16px; background: var(--bg3); border-radius: 10px; margin-bottom: 16px"
+            >
+              <strong style="color: var(--accent)"
+              >How the Weighted score works:</strong> Each person gets 50% their
+              personal rating + 50% metrics weighted by <em
+                style="font-style: italic; color: var(--text)"
+              >their</em> sliders. The two scores are then averaged. Set 5 for
+              essential, 1 for irrelevant.
             </div>
             <div class="weights-grid" id="weightsGrid"></div>
             <div
@@ -296,13 +319,25 @@ closeOverlay("profileOverlay")'
           <!-- SECURITY TAB -->
           <div id="ptab-security" style="display: none">
             <div class="profile-section-title">Passkey</div>
-            <div style="font-size: 13px; color: var(--text2); margin-bottom: 16px; line-height: 1.5">
-              Use a passkey for faster, more secure sign-in without needing email verification.
+            <div
+              style="font-size: 13px; color: var(--text2); margin-bottom: 16px; line-height: 1.5"
+            >
+              Use a passkey for faster, more secure sign-in without needing
+              email verification.
             </div>
-            <button type="button" class="passkey-setup-btn" id="passkeySetupBtn" onclick="setupPasskey()">
+            <button
+              type="button"
+              class="passkey-setup-btn"
+              id="passkeySetupBtn"
+              onclick="setupPasskey()"
+            >
               Set up Passkey
             </button>
-            <div id="passkeyStatus" style="font-size: 12px; color: var(--text3); margin-top: 12px; display: none"></div>
+            <div
+              id="passkeyStatus"
+              style="font-size: 12px; color: var(--text3); margin-top: 12px; display: none"
+            >
+            </div>
           </div>
 
           <!-- PAIR TAB -->

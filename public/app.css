@@ -922,6 +922,23 @@ input[type="range"]::-webkit-slider-thumb {
 .lb-table th[title]:hover {
   color: var(--text);
 }
+
+.partner-col {
+  display: table-cell;
+}
+
+body:not(.paired) .partner-col {
+  display: none;
+}
+
+.legend-item.partner-col {
+  display: flex;
+}
+
+body:not(.paired) .legend-item.partner-col {
+  display: none;
+}
+
 .lb-table th.sorted {
   color: var(--accent);
 }

@@ -24,28 +24,23 @@ async function init() {
   COUNTRIES = data.countries;
   await loadData();
 
-  // Check for pending invite in cookie and auto-accept
-  const pendingMatch = document.cookie.match(
-    /(?:^|;\s*)pending_invite=([^;]+)/,
-  );
-  if (pendingMatch) {
-    const token = pendingMatch[1];
-    try {
-      const acceptRes = await fetch(`/api/invite/${token}/accept`, {
-        method: "POST",
-      });
-      if (acceptRes.ok) {
-        console.log("Auto-accepted invite");
-        document.cookie = "pending_invite=; Max-Age=0; Path=/";
-      }
-    } catch {
-      // Silent fail - invite will stay pending
+  // Check for pending invite and auto-pair if exists
+  try {
+    const checkRes = await fetch("/api/invite/check", { method: "POST" });
+    const checkData = await checkRes.json();
+    if (checkData.paired) {
+      console.log("Auto-paired with partner");
     }
+  } catch {
+    // Silent fail - no pending invite
   }
+
+  // Load partner info BEFORE first render
+  await loadPartner();
+  updatePairedState();
 
   await renderLB();
   setupEventListeners();
-  await loadPartner();
 }
 
 async function loadPartner() {
@@ -53,10 +48,19 @@ async function loadPartner() {
   if (res.ok) {
     partnerData = await res.json();
     console.log("partnerData from /api/me:", partnerData);
-    // Also load partner's name for the legend
+
+    // Load current user's profile from API
+    if (partnerData.name) {
+      profile.youName = partnerData.name;
+    }
+    if (partnerData.accentColor) {
+      profile.accentColor = partnerData.accentColor;
+    }
+
+    // Load partner's profile
     if (partnerData?.partnerId) {
       profile.partnerName = partnerData.partnerName || "Partner";
-      profile.partnerAccentColor = partnerData.partnerAccentColor;
+      profile.partnerAccentColor = partnerData.partnerAccentColor || "#c8a96e";
     } else {
       profile.partnerName = "Partner";
     }
@@ -73,6 +77,7 @@ async function loadPartner() {
 
   renderPairTab();
   updateLegendNames();
+  updatePairedState();
 }
 
 function renderPairTab() {
@@ -120,6 +125,7 @@ async function unpair() {
     await fetch("/api/unpair", { method: "POST" });
     partnerData = null;
     renderPairTab();
+    updatePairedState();
   }
 }
 
@@ -153,6 +159,13 @@ function updateLegendNames() {
   updateAccentColorUI();
 }
 
+function updatePairedState() {
+  const isPaired = !!partnerData?.partnerId;
+  console.log("updatePairedState:", isPaired, "partnerData:", partnerData);
+  document.body.classList.toggle("paired", isPaired);
+  document.body.classList.toggle("solo", !isPaired);
+}
+
 function ws(id) {
   const c = COUNTRIES.find((x) => x.id === id);
   const r = ratings[id] || { you: 0, partner: 0 };
@@ -160,23 +173,36 @@ function ws(id) {
   const partner = r.partner || 0;
 
   const youW = profile.weights;
-  const partnerW = profile.weights;
+  const isPaired = !!partnerData?.partnerId;
 
-  const twYou = ALL_METRICS.reduce((s, m) => s + (youW[m.k] || 3), 0);
-  const twPartner = ALL_METRICS.reduce((s, m) => s + (partnerW[m.k] || 3), 0);
+  const tw = ALL_METRICS.reduce((s, m) => s + (youW[m.k] || 3), 0);
 
+  // Use your weights for metric score
   const msYou = ALL_METRICS.reduce(
     (s, m) => s + (c.metrics[m.k] || 5) * (youW[m.k] || 3),
     0,
-  ) / twYou;
+  ) / tw;
+
+  // You gets 50% personal + 50% metric, unless paired then average
+  const youScore = (you / 5 * 10 * 0.5) + (msYou * 0.5);
+
+  if (!isPaired) {
+    return youScore;
+  }
+
+  // When paired, use partner's weights too
+  const partnerW = profile.partnerWeights || youW;
+  const twPartner = ALL_METRICS.reduce((s, m) => s + (partnerW[m.k] || 3), 0);
   const msPartner = ALL_METRICS.reduce(
     (s, m) => s + (c.metrics[m.k] || 5) * (partnerW[m.k] || 3),
     0,
   ) / twPartner;
 
-  const youScore = (you / 5 * 10 * 0.5) + (msYou * 0.5);
   const partnerScore = (partner / 5 * 10 * 0.5) + (msPartner * 0.5);
 
+  // Average of both weighted scores (not your personal + partner's personal, but combined approach)
+  // Each person has already done 50% their rating + 50% their metric-scores
+  // So we just average the two final scores
   return (youScore + partnerScore) / 2;
 }
 
@@ -198,6 +224,7 @@ function bar(v) {
 }
 
 function renderLB() {
+  const isPaired = !!partnerData?.partnerId;
   const data = COUNTRIES.filter((c) => !hidden[c.id]).map((c) => {
     const r = ratings[c.id] || { you: 0, partner: 0 };
     return {
@@ -267,18 +294,26 @@ function renderLB() {
       : "—";
     const pinStar = pins[c.id] ? "⭐" : "☆";
 
-    tbody.innerHTML +=
-      `<tr class="${rc} ${pr}" onclick="openDetail('${c.id}')">` +
+    let row = `<tr class="${rc} ${pr}" onclick="openDetail('${c.id}')">` +
       `<td><span class="rank-num">${rank}</span></td>` +
       `<td><div style="display:flex;align-items:center;gap:8px"><span class="flag">${c.flagEmoji}</span><span class="country-name">${nt}${c.name}</span></div></td>` +
-      `<td><span class="score-you">${youV}</span></td>` +
-      `<td><span class="score-partner">${partnerV}</span></td>` +
-      `<td><span class="score-combined">${c.score.toFixed(2)}</span></td>` +
-      `<td>${gapCell}</td>` +
-      mc +
+      `<td><span class="score-you">${youV}</span></td>`;
+
+    if (isPaired) {
+      row += `<td><span class="score-partner">${partnerV}</span></td>`;
+    }
+
+    row += `<td><span class="score-combined">${c.score.toFixed(2)}</span></td>`;
+
+    if (isPaired) {
+      row += `<td>${gapCell}</td>`;
+    }
+
+    row += mc +
       `<td onclick="event.stopPropagation();togglePin('${c.id}')" style="cursor:pointer;font-size:15px;text-align:center">${pinStar}</td>` +
       `<td onclick="event.stopPropagation();toggleHide('${c.id}')" style="text-align:center"><button class="hide-btn" title="Hide this country">✕</button></td>` +
       `</tr>`;
+    tbody.innerHTML += row;
   });
 
   document.querySelectorAll(".lb-table th").forEach((t) => {
@@ -919,5 +954,6 @@ globalThis.unhide = unhide;
 globalThis.updateAccentColorUI = updateAccentColorUI;
 globalThis.persistProfileToServer = persistProfileToServer;
 globalThis.updateLegendNames = updateLegendNames;
+globalThis.updatePairedState = updatePairedState;
 
 document.addEventListener("DOMContentLoaded", init);
