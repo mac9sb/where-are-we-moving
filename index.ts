@@ -9,7 +9,10 @@ import {
 const kv = await Deno.openKv();
 const log = createLogger("app");
 
-const BASE_URL = Deno.env.get("BASE_URL") ?? "http://localhost:8000";
+const BASE_URL = (Deno.env.get("BASE_URL") ?? "http://localhost:8000").replace(
+  /\/+$/,
+  "",
+);
 const RP_ID = new URL(BASE_URL).hostname;
 const RP_NAME = Deno.env.get("RP_NAME") ?? "Where Are We Moving";
 
@@ -27,13 +30,17 @@ async function seedCountries() {
     const oldList = await kv.get(["countries", "list"]);
     const version = existing.value?.version || 1;
     if (
-      version < 2 && oldList.value && Array.isArray(oldList.value) &&
+      version < 2 &&
+      oldList.value &&
+      Array.isArray(oldList.value) &&
       !oldList.value[0]?.flagEmoji
     ) {
       log.info("re-seeding countries with flagEmoji...");
       const { ALL_METRICS, COUNTRIES } = await import("./shared/countries.ts");
 
-      await kv.atomic().set(["countries", "metrics"], ALL_METRICS)
+      await kv
+        .atomic()
+        .set(["countries", "metrics"], ALL_METRICS)
         .set(["countries", "list"], COUNTRIES)
         .set(SEEDED_KEY, { version: 2 })
         .commit();
@@ -48,7 +55,9 @@ async function seedCountries() {
   log.info("seeding countries to KV...");
   const { ALL_METRICS, COUNTRIES } = await import("./shared/countries.ts");
 
-  await kv.atomic().set(["countries", "metrics"], ALL_METRICS)
+  await kv
+    .atomic()
+    .set(["countries", "metrics"], ALL_METRICS)
     .set(["countries", "list"], COUNTRIES)
     .set(SEEDED_KEY, { version: 1 })
     .commit();
@@ -142,8 +151,7 @@ router.route("/invite/:token", {
         status: 302,
         headers: {
           Location: `${BASE_URL}/get-started`,
-          "Set-Cookie":
-            `pending_invite=${token}; Path=/; HttpOnly; SameSite=Lax`,
+          "Set-Cookie": `pending_invite=${token}; Path=/; HttpOnly; SameSite=Lax`,
         },
       });
       return res;
@@ -160,11 +168,11 @@ router.route("/api/me", {
     if (!session) return json({ error: "unauthenticated" }, 401);
 
     const [profileEntry, pairEntry] = await Promise.all([
-      kv.get<
-        { name: string; accentColor?: string; weights?: Record<string, number> }
-      >(
-        ["profile", session.userId],
-      ),
+      kv.get<{
+        name: string;
+        accentColor?: string;
+        weights?: Record<string, number>;
+      }>(["profile", session.userId]),
       kv.get<string>(["pair", session.userId]),
     ]);
     const partnerId = pairEntry.value ?? null;
@@ -228,7 +236,7 @@ router.route("/api/profile", {
 
     const existing = await kv.get(["profile", session!.userId]);
     const profile = {
-      ...(existing.value as object || {}),
+      ...((existing.value as object) || {}),
       name,
       accentColor,
       ...(body.weights ? { weights: body.weights } : {}),
